@@ -52,11 +52,8 @@ jobs:
         run: |
           cd hashcat_dir
           hashcat --version
-          dir
-          hashcat -b -m 13600 -D 1,2,3
-          # 使用完整路径测试 john
-          & "$env:JOHN_DIR\john.exe" --list=formats | Select-Object -First 5
-          
+          echo "显示测试情况"
+          hashcat -b -m 13600 -D 1,2,3          
         shell: pwsh
         continue-on-error: true
 
