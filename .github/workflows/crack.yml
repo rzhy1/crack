@@ -12,6 +12,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Intel OpenCL runtime
+        run: |
+          choco install opencl-runtime-intel-cpu --yes --limit-output
+          # 有时需要刷新环境变量
+          refreshenv
+        shell: pwsh
+        continue-on-error: true   # 即使安装失败也不中断（也许已有其他运行时）
+      
       # 下载 Hashcat
       - name: Download Hashcat Windows binary
         run: |
