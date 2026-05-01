@@ -1,96 +1,69 @@
-name: Crack with Hashcat and John
+name: Crack with John and Hashcat
 
 on:
   workflow_dispatch:
+    inputs:
+      hash_format:
+        description: 'John 格式 (nt, raw-md5, raw-sha1, crypt)'
+        required: false
+        default: 'nt'
 
 jobs:
   crack:
     runs-on: windows-latest
-    timeout-minutes: 3600
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4      
-      # 下载 Hashcat
-      - name: Download Hashcat Windows binary
+        uses: actions/checkout@v4
+
+      - name: Download Hashcat
         run: |
           curl -L -o hashcat.7z "https://github.com/rzhy1/hashcat/releases/download/v7.1.2-382-g2d71af371/hashcat_v7.1.2-382-g2d71af371.7z"
           mkdir hashcat_dir
           7z x hashcat.7z -ohashcat_dir
+          echo "HASHCAT_DIR=$env:GITHUB_WORKSPACE\hashcat_dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         shell: pwsh
 
-      # 下载 John the Ripper
-      - name: Download John the Ripper Windows binary
+      - name: Download John the Ripper
         run: |
           curl -L -o john.zip "https://github.com/rzhy1/john-windows-x64/releases/download/1.9.0-jumbo-1%2Bbleeding-f514ece8ec/john-windows-x64.zip"
           mkdir john_dir
           Expand-Archive -Path john.zip -DestinationPath john_dir
-        shell: pwsh
-
-      # 正确添加工具路径到 PATH（处理 John 的 run 子目录）
-      - name: Add tools to PATH
-        run: |
-          $hashcatPath = "$env:GITHUB_WORKSPACE\hashcat_dir"
-          # 查找 John 的 run 目录（内含 john.exe）
-          $johnRoot = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\john_dir" -Directory | Select-Object -First 1
+          $johnRoot = Get-ChildItem -Path "john_dir" -Directory | Select-Object -First 1
           $johnRunDir = "$($johnRoot.FullName)\run"
-          if (Test-Path $johnRunDir) {
-            $env:PATH = "$hashcatPath;$johnRunDir;$env:PATH"
-            echo "JOHN_DIR=$johnRunDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          } else {
-            # 回退：如果没有 run 子目录，则添加根目录本身
-            $env:PATH = "$hashcatPath;$($johnRoot.FullName);$env:PATH"
-            echo "JOHN_DIR=$($johnRoot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          }
-          echo "HASHCAT_DIR=$hashcatPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "JOHN_DIR=$johnRunDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "$johnRunDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         shell: pwsh
 
-      # 验证工具可用性（可选，出现问题也不会终止）
-      - name: Verify tools
+      - name: Verify tools (CPU mode only)
         run: |
-          # 从环境变量中读取 John 的目录
-          $johnDir = $env:JOHN_DIR
-          Write-Host "John 目录: $johnDir"
+          Write-Host "=== Hashcat 版本 ==="
+          & "$env:HASHCAT_DIR\hashcat.exe" --version
           
-          # 切换到 John 的 run 目录（john.exe 所在位置）
-          cd $johnDir
+          Write-Host "`n=== John 版本 ==="
+          & "$env:JOHN_DIR\john.exe" --version
           
-          # 确认 john.conf 是否存在
-          if (Test-Path "john.conf") {
-              Write-Host "找到 john.conf 配置文件"
-          } else {
-              Write-Host "警告：未找到 john.conf，但 John 可能仍能运行"
-          }
-          
-          Write-Host "`n显示硬件信息..."
-          .\john.exe --list=opencl-devices
-          
-          Write-Host "`n显示测试情况..."
-          .\john.exe --test --format=zip-opencl --devices=1
+          Write-Host "`n=== John CPU 测试 ==="
+          & "$env:JOHN_DIR\john.exe" --test --format=nt
         shell: pwsh
-        continue-on-error: true
 
-      # 执行用户的 crack.bat 脚本
       - name: Run crack script
         run: |
           if (Test-Path "crack.bat") {
             .\crack.bat
           } else {
-            Write-Host "未找到 crack.bat，使用默认命令（仅 hashcat 字典攻击）..."
-            hashcat -m ${{ github.event.inputs.hash_type }} -a 0 hash.txt xxx.txt -o result.txt ${{ github.event.inputs.extra_args }}
+            Write-Host "使用默认 John 命令..."
+            & "$env:JOHN_DIR\john.exe" --format=${{ github.event.inputs.hash_format }} --wordlist=xxx.txt hash.txt --pot=john.pot
+            & "$env:JOHN_DIR\john.exe" --show hash.txt
           }
         shell: pwsh
 
-      # 上传结果
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
           name: crack-results
           path: |
-            result.txt
-            hashcat.potfile
             *.pot
-            *.pot.*
-            run\*.pot        # John 默认的 pot 文件位置
+            result.txt
           if-no-files-found: ignore
