@@ -50,6 +50,7 @@ jobs:
       # 验证工具可用性（可选，出现问题也不会终止）
       - name: Verify tools
         run: |
+          cd hashcat_dir
           hashcat --version
           dir
           hashcat -b -m 13600 -D 1,2,3
