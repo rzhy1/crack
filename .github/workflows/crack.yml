@@ -10,18 +10,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Intel OpenCL runtime
-        run: |
-          # Intel OpenCL CPU Runtime 官方下载链接（需要从 Intel 官网获取实际 URL）
-          # 注意：Intel 官网可能需要接受许可协议，直接 wget 可能会失败
-          # 备选方案：使用已公开的镜像或缓存
-          curl -L -o opencl_setup.exe "https://registrationcenter-download.intel.com/akdlm/irc_nas/19079/opencl_runtime_2023.12.9.0.25_x64_setup.msi"
-          # 如果是 .msi 文件，使用 msiexec 安装
-          Start-Process -Wait -FilePath "msiexec" -ArgumentList "/i opencl_setup.msi /quiet /norestart"
-        shell: pwsh
-      
+        uses: actions/checkout@v4      
       # 下载 Hashcat
       - name: Download Hashcat Windows binary
         run: |
@@ -60,6 +49,7 @@ jobs:
       # 验证工具可用性（可选，出现问题也不会终止）
       - name: Verify tools
         run: |
+          dir 
           cd john\run
           echo "显示硬件"
           john --list=opencl-devices
