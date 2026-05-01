@@ -51,6 +51,7 @@ jobs:
       - name: Verify tools
         run: |
           hashcat --version
+          dir hashcat_dir
           hashcat -b -m 13600 -D 1,2,3
           # 使用完整路径测试 john
           & "$env:JOHN_DIR\john.exe" --list=formats | Select-Object -First 5
