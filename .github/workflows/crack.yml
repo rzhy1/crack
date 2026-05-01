@@ -37,7 +37,7 @@ jobs:
           & "$env:HASHCAT_DIR\hashcat.exe" --version
           
           Write-Host "`n=== John 版本 ==="
-          & "$env:JOHN_DIR\john.exe" --version
+          & "$env:JOHN_DIR\john.exe"  --list=opencl-devices
           
           Write-Host "`n=== John CPU 测试 ==="
           & "$env:JOHN_DIR\john.exe" --test --format=zip
