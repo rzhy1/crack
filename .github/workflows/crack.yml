@@ -2,20 +2,11 @@ name: Crack with Hashcat and John
 
 on:
   workflow_dispatch:
-    inputs:
-      hash_type:
-        description: 'Hashcat 模式 (-m)'
-        required: false
-        default: '1000'
-      extra_args:
-        description: 'Hashcat 额外参数'
-        required: false
-        default: '-O --force'
 
 jobs:
   crack:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 3600
 
     steps:
       - name: Checkout repository
@@ -60,8 +51,10 @@ jobs:
       - name: Verify tools
         run: |
           hashcat --version
+          hashcat -b -m 13600 -D 1,2,3
           # 使用完整路径测试 john
           & "$env:JOHN_DIR\john.exe" --list=formats | Select-Object -First 5
+          
         shell: pwsh
         continue-on-error: true
 
