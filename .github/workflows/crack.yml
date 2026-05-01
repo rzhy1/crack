@@ -2,11 +2,6 @@ name: Crack with John and Hashcat
 
 on:
   workflow_dispatch:
-    inputs:
-      hash_format:
-        description: 'John 格式 (nt, raw-md5, raw-sha1, crypt)'
-        required: false
-        default: 'nt'
 
 jobs:
   crack:
@@ -45,7 +40,7 @@ jobs:
           & "$env:JOHN_DIR\john.exe" --version
           
           Write-Host "`n=== John CPU 测试 ==="
-          & "$env:JOHN_DIR\john.exe" --test --format=nt
+          & "$env:JOHN_DIR\john.exe" --test --format=zip
         shell: pwsh
 
       - name: Run crack script
