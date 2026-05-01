@@ -1,74 +1,87 @@
-name: Hashcat Password Cracking
+name: Crack with Hashcat and John
 
 on:
-  # 手动触发（推荐，避免自动运行消耗大量时间）
   workflow_dispatch:
     inputs:
       hash_type:
-        description: 'Hashcat 模式 (-m 值，例如 1000 代表 NTLM)'
-        required: true
+        description: 'Hashcat 模式 (-m)'
+        required: false
         default: '1000'
       extra_args:
-        description: '额外的 hashcat 参数（如 -O --force）'
+        description: 'Hashcat 额外参数'
         required: false
         default: '-O --force'
-  # 可选：当特定文件更新时自动运行
-  # push:
-  #   paths:
-  #     - 'xxx.txt'
-  #     - 'hash.txt'
-  #     - 'crack.bat'
 
 jobs:
   crack:
-    runs-on: windows-latest  # 使用 Windows 运行器
-    timeout-minutes: 360     # 超时时间（6小时，可根据需要调整）
+    runs-on: windows-latest
+    timeout-minutes: 360   # 6小时，可调整
 
     steps:
-      # 1. 检出仓库代码（获取字典、哈希文件、bat脚本）
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 下载用户预编译的 hashcat（Windows 版）
-      - name: Download hashcat binary
+      # 下载 Hashcat
+      - name: Download Hashcat Windows binary
         run: |
           curl -L -o hashcat.7z "https://github.com/rzhy1/hashcat/releases/download/v7.1.2-382-g2d71af371/hashcat_v7.1.2-382-g2d71af371.7z"
-          7z x hashcat.7z -ohashcat_dist
-          echo "HASHCAT_DIR=$env:GITHUB_WORKSPACE\hashcat_dist" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          mkdir hashcat_dir
+          7z x hashcat.7z -ohashcat_dir
         shell: pwsh
 
-      # 3. 验证文件是否存在（可选，用于调试）
-      - name: Verify files
+      # 下载 John the Ripper
+      - name: Download John the Ripper Windows binary
         run: |
-          Get-ChildItem -Path . -File
-          Get-ChildItem -Path $env:HASHCAT_DIR
+          curl -L -o john.zip "https://github.com/rzhy1/john-windows-x64/releases/download/1.9.0-jumbo-1%2Bbleeding-f514ece8ec/john-windows-x64.zip"
+          mkdir john_dir
+          Expand-Archive -Path john.zip -DestinationPath john_dir
         shell: pwsh
 
-      # 4. 执行用户提供的 bat 脚本
-      #    注意：如果脚本需要调用 hashcat.exe，请确保使用了正确的路径。
-      #    你可以将下面的命令修改为直接调用你的 crack.bat
+      # 将工具路径添加到 PATH
+      - name: Add tools to PATH
+        run: |
+          $hashcatPath = "$env:GITHUB_WORKSPACE\hashcat_dir"
+          $johnPath = "$env:GITHUB_WORKSPACE\john_dir\john-*"  # 通用匹配
+          # 找到具体的 john.exe 所在目录（解压后可能是 john-1.9.0-jumbo-1... 文件夹）
+          $johnExeDir = Get-ChildItem -Path $env:GITHUB_WORKSPACE\john_dir -Directory | Select-Object -First 1
+          if ($johnExeDir) {
+            $env:PATH = "$hashcatPath;$($johnExeDir.FullName);$env:PATH"
+            echo "JOHN_DIR=$($johnExeDir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            $env:PATH = "$hashcatPath;$env:GITHUB_WORKSPACE\john_dir;$env:PATH"
+          }
+          $env:PATH = "$hashcatPath;$env:PATH"
+          echo "HASHCAT_DIR=$hashcatPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        shell: pwsh
+
+      # 验证工具是否可用（可选）
+      - name: Verify tools
+        run: |
+          hashcat --version
+          john --list=formats | Select-Object -First 5
+        shell: pwsh
+        continue-on-error: true   # 如果验证失败也不中断，避免影响后续脚本
+
+      # 执行用户提供的批处理脚本（crack.bat）
       - name: Run crack script
         run: |
-          # 将 hashcat 所在目录添加到 PATH 环境变量
-          $hashcatDir = $env:HASHCAT_DIR
-          $env:Path = "$hashcatDir;$env:Path"
-          
-          # 如果用户提供了 crack.bat，则执行它
           if (Test-Path "crack.bat") {
             .\crack.bat
           } else {
-            # 否则使用默认命令（你需要根据实际情况修改 -m 和输入文件）
-            Write-Host "未找到 crack.bat，使用默认破解命令..."
-            & "$hashcatDir\hashcat.exe" -m ${{ github.event.inputs.hash_type }} -a 0 hash.txt xxx.txt -o result.txt ${{ github.event.inputs.extra_args }}
+            Write-Host "未找到 crack.bat，使用默认命令（仅 hashcat 字典攻击）..."
+            hashcat -m ${{ github.event.inputs.hash_type }} -a 0 hash.txt xxx.txt -o result.txt ${{ github.event.inputs.extra_args }}
           }
         shell: pwsh
 
-      # 5. 上传破解结果（方便下载）
+      # 上传结果文件
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
-          name: hashcat-results
+          name: crack-results
           path: |
             result.txt
             hashcat.potfile
+            *.pot
+            *.pot.*
           if-no-files-found: ignore
