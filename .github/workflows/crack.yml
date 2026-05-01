@@ -15,7 +15,7 @@ on:
 jobs:
   crack:
     runs-on: windows-latest
-    timeout-minutes: 360   # 6小时，可调整
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repository
@@ -37,33 +37,35 @@ jobs:
           Expand-Archive -Path john.zip -DestinationPath john_dir
         shell: pwsh
 
-      # 将工具路径添加到 PATH
+      # 正确添加工具路径到 PATH（处理 John 的 run 子目录）
       - name: Add tools to PATH
         run: |
           $hashcatPath = "$env:GITHUB_WORKSPACE\hashcat_dir"
-          $johnPath = "$env:GITHUB_WORKSPACE\john_dir\john-*"  # 通用匹配
-          # 找到具体的 john.exe 所在目录（解压后可能是 john-1.9.0-jumbo-1... 文件夹）
-          $johnExeDir = Get-ChildItem -Path $env:GITHUB_WORKSPACE\john_dir -Directory | Select-Object -First 1
-          if ($johnExeDir) {
-            $env:PATH = "$hashcatPath;$($johnExeDir.FullName);$env:PATH"
-            echo "JOHN_DIR=$($johnExeDir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # 查找 John 的 run 目录（内含 john.exe）
+          $johnRoot = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\john_dir" -Directory | Select-Object -First 1
+          $johnRunDir = "$($johnRoot.FullName)\run"
+          if (Test-Path $johnRunDir) {
+            $env:PATH = "$hashcatPath;$johnRunDir;$env:PATH"
+            echo "JOHN_DIR=$johnRunDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           } else {
-            $env:PATH = "$hashcatPath;$env:GITHUB_WORKSPACE\john_dir;$env:PATH"
+            # 回退：如果没有 run 子目录，则添加根目录本身
+            $env:PATH = "$hashcatPath;$($johnRoot.FullName);$env:PATH"
+            echo "JOHN_DIR=$($johnRoot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
-          $env:PATH = "$hashcatPath;$env:PATH"
           echo "HASHCAT_DIR=$hashcatPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         shell: pwsh
 
-      # 验证工具是否可用（可选）
+      # 验证工具可用性（可选，出现问题也不会终止）
       - name: Verify tools
         run: |
           hashcat --version
-          john --list=formats | Select-Object -First 5
+          # 使用完整路径测试 john
+          & "$env:JOHN_DIR\john.exe" --list=formats | Select-Object -First 5
         shell: pwsh
-        continue-on-error: true   # 如果验证失败也不中断，避免影响后续脚本
+        continue-on-error: true
 
-      # 执行用户提供的批处理脚本（crack.bat）
+      # 执行用户的 crack.bat 脚本
       - name: Run crack script
         run: |
           if (Test-Path "crack.bat") {
@@ -74,7 +76,7 @@ jobs:
           }
         shell: pwsh
 
-      # 上传结果文件
+      # 上传结果
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
@@ -84,4 +86,5 @@ jobs:
             hashcat.potfile
             *.pot
             *.pot.*
+            run\*.pot        # John 默认的 pot 文件位置
           if-no-files-found: ignore
