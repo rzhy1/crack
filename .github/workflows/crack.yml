@@ -49,11 +49,25 @@ jobs:
       # 验证工具可用性（可选，出现问题也不会终止）
       - name: Verify tools
         run: |
-          cd $johnRunDir
-          echo "显示硬件"
-          john --list=opencl-devices
-          echo "显示测试情况"
-          john --test --format=zip-opencl --devices=1
+          # 从环境变量中读取 John 的目录
+          $johnDir = $env:JOHN_DIR
+          Write-Host "John 目录: $johnDir"
+          
+          # 切换到 John 的 run 目录（john.exe 所在位置）
+          cd $johnDir
+          
+          # 确认 john.conf 是否存在
+          if (Test-Path "john.conf") {
+              Write-Host "找到 john.conf 配置文件"
+          } else {
+              Write-Host "警告：未找到 john.conf，但 John 可能仍能运行"
+          }
+          
+          Write-Host "`n显示硬件信息..."
+          .\john.exe --list=opencl-devices
+          
+          Write-Host "`n显示测试情况..."
+          .\john.exe --test --format=zip-opencl --devices=1
         shell: pwsh
         continue-on-error: true
 
