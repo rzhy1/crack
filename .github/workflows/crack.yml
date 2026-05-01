@@ -49,7 +49,7 @@ jobs:
       # 验证工具可用性（可选，出现问题也不会终止）
       - name: Verify tools
         run: |
-          cd john_dir\run
+          cd $johnRunDir
           echo "显示硬件"
           john --list=opencl-devices
           echo "显示测试情况"
