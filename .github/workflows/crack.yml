@@ -53,7 +53,7 @@ jobs:
           cd hashcat_dir
           hashcat --version
           echo "显示测试情况"
-          hashcat -b -m 13600 -D 1,2,3          
+          hashcat -b -m 13600
         shell: pwsh
         continue-on-error: true
 
